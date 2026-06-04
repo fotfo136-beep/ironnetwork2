@@ -219,31 +219,19 @@ textarea.inp{resize:none;min-height:80px;line-height:1.5}
     </div>
   </div>
 
-  <!-- ══════ THE YARD ══════ -->
-  <div class="view" id="v-yard">
+
+
+  <!-- ══════ LOCALS (HOME SCREEN) ══════ -->
+  <div class="view" id="v-locals">
     <div class="hdr">
       <div class="logo"><span class="i">IRON</span><span class="n">net</span><span class="w">WORK</span></div>
       <div class="hdr-r">
         <div class="ib" onclick="nav('msgs')">💬</div>
-        <div class="av-s" id="yard-av" onclick="nav('profile')"></div>
+        <div class="av-s" id="locals-av" onclick="nav('profile')"></div>
       </div>
     </div>
-    <div class="scrl" id="yard-feed"><div class="loading">Loading The Yard...</div></div>
-    <button class="fab" onclick="openCompose()">+</button>
-    <div class="bnav">
-      <div class="ni on" onclick="nav('yard')"><span class="nn">🏠</span><span class="nl">The Yard</span></div>
-      <div class="ni" onclick="nav('locals')"><span class="nn">⚒️</span><span class="nl">Locals</span></div>
-      <div class="ni" onclick="nav('msgs')"><span class="nn">💬</span><span class="nl">Messages</span></div>
-      <div class="ni" onclick="nav('profile')"><span class="nn">👤</span><span class="nl">My Card</span></div>
-    </div>
-  </div>
-
-  <!-- ══════ LOCALS ══════ -->
-  <div class="view" id="v-locals">
-    <div class="hdr"><div class="logo">⚒️ <span class="i" style="color:var(--or)">Locals</span></div></div>
     <div class="scrl" id="locals-list"><div class="loading">Loading Locals...</div></div>
     <div class="bnav">
-      <div class="ni" onclick="nav('yard')"><span class="nn">🏠</span><span class="nl">The Yard</span></div>
       <div class="ni on" onclick="nav('locals')"><span class="nn">⚒️</span><span class="nl">Locals</span></div>
       <div class="ni" onclick="nav('msgs')"><span class="nn">💬</span><span class="nl">Messages</span></div>
       <div class="ni" onclick="nav('profile')"><span class="nn">👤</span><span class="nl">My Card</span></div>
@@ -256,7 +244,6 @@ textarea.inp{resize:none;min-height:80px;line-height:1.5}
     <div class="scrl" id="ld-feed"><div class="loading">Loading...</div></div>
     <button class="fab" onclick="openCompose()">+</button>
     <div class="bnav">
-      <div class="ni" onclick="nav('yard')"><span class="nn">🏠</span><span class="nl">The Yard</span></div>
       <div class="ni on" onclick="nav('locals')"><span class="nn">⚒️</span><span class="nl">Locals</span></div>
       <div class="ni" onclick="nav('msgs')"><span class="nn">💬</span><span class="nl">Messages</span></div>
       <div class="ni" onclick="nav('profile')"><span class="nn">👤</span><span class="nl">My Card</span></div>
@@ -268,7 +255,6 @@ textarea.inp{resize:none;min-height:80px;line-height:1.5}
     <div class="hdr"><div class="logo">💬 Messages</div></div>
     <div class="scrl" id="msgs-list"><div class="loading">Loading messages...</div></div>
     <div class="bnav">
-      <div class="ni" onclick="nav('yard')"><span class="nn">🏠</span><span class="nl">The Yard</span></div>
       <div class="ni" onclick="nav('locals')"><span class="nn">⚒️</span><span class="nl">Locals</span></div>
       <div class="ni on" onclick="nav('msgs')"><span class="nn">💬</span><span class="nl">Messages</span></div>
       <div class="ni" onclick="nav('profile')"><span class="nn">👤</span><span class="nl">My Card</span></div>
@@ -284,10 +270,9 @@ textarea.inp{resize:none;min-height:80px;line-height:1.5}
 
   <!-- ══════ PROFILE ══════ -->
   <div class="view" id="v-profile">
-    <div class="hdr"><div style="cursor:pointer;font-size:14px" onclick="nav('yard')">← The Yard</div></div>
+    <div class="hdr"><div style="cursor:pointer;font-size:14px" onclick="nav('locals')">← Locals</div></div>
     <div class="scrl" id="profile-content"></div>
     <div class="bnav">
-      <div class="ni" onclick="nav('yard')"><span class="nn">🏠</span><span class="nl">The Yard</span></div>
       <div class="ni" onclick="nav('locals')"><span class="nn">⚒️</span><span class="nl">Locals</span></div>
       <div class="ni" onclick="nav('msgs')"><span class="nn">💬</span><span class="nl">Messages</span></div>
       <div class="ni on" onclick="nav('profile')"><span class="nn">👤</span><span class="nl">My Card</span></div>
@@ -383,22 +368,9 @@ function logout() { TOKEN = ''; ME = null; localStorage.removeItem('inw_token');
 function nav(view) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
   document.getElementById('v-' + view)?.classList.add('on');
-  if (view === 'yard') loadYard();
   if (view === 'locals') loadLocals();
   if (view === 'msgs') loadConversations();
   if (view === 'profile') loadProfile();
-}
-
-// ═══════════════════════════════════════
-// THE YARD
-// ═══════════════════════════════════════
-async function loadYard() {
-  const yardAv = document.getElementById('yard-av');
-  yardAv.innerHTML = ME.avatar ? `<img src="${ME.avatar}">` : (TRADE_EMOJIS[ME.trade] || '⚒️');
-  const posts = await api('/api/posts');
-  const el = document.getElementById('yard-feed');
-  if (!posts.length) { el.innerHTML = '<div class="empty"><div class="ei">🏗️</div><div class="et">The Yard is empty</div><div class="es">Be the first to drop a post. Show your crew what you\'re working on.</div></div>'; return; }
-  el.innerHTML = posts.map(p => renderPost(p)).join('');
 }
 
 function renderPost(p) {
@@ -444,21 +416,22 @@ function renderPost(p) {
 function escHtml(s) { return s.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 async function toggleProps(postId, el) {
-  const r = await api(`/api/posts/${postId}/props`, { method: 'POST' });
-  if (el.closest('#yard-feed')) loadYard();
-  else if (el.closest('#ld-feed')) loadLocalDetail(currentLocal);
+  await api(`/api/posts/${postId}/props`, { method: 'POST' });
+  if (currentLocal) loadLocalDetail(currentLocal);
 }
 
 async function deletePost(id) {
   await api(`/api/posts/${id}`, { method: 'DELETE' });
   toast('🗑️ Post deleted');
-  loadYard();
+  if (currentLocal) loadLocalDetail(currentLocal);
 }
 
 // ═══════════════════════════════════════
 // LOCALS
 // ═══════════════════════════════════════
 async function loadLocals() {
+  const localsAv = document.getElementById('locals-av');
+  if (localsAv) localsAv.innerHTML = ME.avatar ? `<img src="${ME.avatar}">` : (TRADE_EMOJIS[ME.trade] || '⚒️');
   const locals = await api('/api/locals');
   const el = document.getElementById('locals-list');
   const mine = locals.filter(l => l.joined);
@@ -746,7 +719,7 @@ async function submitPost() {
   closeCompose();
   toast('✅ Dropped. 🔥');
   if (currentLocal) loadLocalDetail(currentLocal);
-  else loadYard();
+  else nav('locals');
 }
 
 // ═══════════════════════════════════════
@@ -772,11 +745,11 @@ async function initApp() {
   try {
     ME = await api('/api/me');
     if (ME.error) { TOKEN = ''; localStorage.removeItem('inw_token'); nav('auth'); return; }
-    nav('yard');
+    nav('locals');
   } catch(e) { nav('auth'); }
 }
 
 initApp();
 </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a062d6ed9968ee0a',t:'MTc4MDUzMzEzNw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
