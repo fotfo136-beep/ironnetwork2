@@ -285,6 +285,36 @@ textarea.inp{resize:none;min-height:80px;line-height:1.5}
     <div class="scrl" id="user-content"></div>
   </div>
 
+  <!-- ══════ EDIT PROFILE OVERLAY ══════ -->
+  <div class="compose" id="edit-profile">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--b)">
+      <div style="font-size:13px;cursor:pointer;color:var(--t2);font-weight:700" onclick="closeEdit()">Cancel</div>
+      <div style="font-size:15px;font-weight:900">Edit My Card</div>
+      <button style="padding:6px 16px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;border:none;border-radius:50px;font-size:12px;font-weight:900;cursor:pointer" onclick="saveProfile()">SAVE</button>
+    </div>
+    <div style="padding:12px 16px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px">
+      <div style="text-align:center;padding:10px 0">
+        <div style="width:70px;height:70px;border-radius:50%;margin:0 auto 8px;overflow:hidden;background:var(--c);display:flex;align-items:center;justify-content:center;font-size:32px;border:3px solid var(--b2)" id="edit-av-preview"></div>
+        <label style="font-size:11px;color:var(--or);font-weight:700;cursor:pointer">📸 Change Photo<input type="file" id="edit-avatar" accept="image/*" style="display:none" onchange="previewAvatar(this)"></label>
+      </div>
+      <div><label class="lbl">👤 Name</label><input class="inp" id="e-name"></div>
+      <div><label class="lbl">📱 Phone</label><input class="inp" id="e-phone" disabled style="opacity:.5"></div>
+      <div>
+        <label class="lbl">⚒️ Trade</label>
+        <select class="inp" id="e-trade">
+          <option>Electrician</option><option>Ironworker</option><option>Plumber</option><option>Carpenter</option><option>Welder</option><option>Operator</option><option>HVAC</option><option>Mason</option>
+        </select>
+      </div>
+      <div><label class="lbl">📍 Location</label><input class="inp" id="e-loc"></div>
+      <div>
+        <label class="lbl">⏱️ Years In</label>
+        <select class="inp" id="e-years"><option>< 1 yr</option><option>1-3 yrs</option><option>3-5 yrs</option><option>5-10 yrs</option><option>10-20 yrs</option><option>20+ yrs</option></select>
+      </div>
+      <div><label class="lbl">📝 Bio</label><textarea class="inp" id="e-bio" placeholder="Tell your crew about yourself..." style="min-height:60px"></textarea></div>
+      <div style="height:20px"></div>
+    </div>
+  </div>
+
   <!-- ══════ COMPOSE OVERLAY ══════ -->
   <div class="compose" id="compose">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--b)">
@@ -567,7 +597,8 @@ async function loadProfile() {
       <div class="pf-s"><div class="pn">${vouches.total||0}</div><div class="pl">Vouches</div></div>
     </div>
     <div style="padding:0 16px 10px;display:flex;gap:6px">
-      <button class="btn bto" style="flex:1;font-size:11px;padding:9px" onclick="logout()">Log Out</button>
+      <button class="btn btn1" style="flex:1;font-size:11px;padding:9px" onclick="openEdit()">✏️ Edit My Card</button>
+      <button class="btn bto" style="flex:0 0 auto;font-size:11px;padding:9px 16px" onclick="logout()">Log Out</button>
     </div>
     <div style="padding:0 16px 10px"><div class="slbl" style="padding:0 0 6px">🤝 Vouches (${vouches.total||0})</div>${vouchHtml}</div>
     <div style="padding:0 16px 10px"><div class="slbl" style="padding:0 0 6px">🏅 Certifications</div><div style="display:flex;flex-wrap:wrap;gap:4px">${certsHtml}</div>
@@ -634,8 +665,53 @@ async function vouch(userId, category, el) {
 }
 
 // ═══════════════════════════════════════
-// COMMENTS
+// EDIT PROFILE
 // ═══════════════════════════════════════
+function openEdit() {
+  document.getElementById('edit-profile').classList.add('on');
+  document.getElementById('e-name').value = ME.name;
+  document.getElementById('e-phone').value = ME.phone;
+  document.getElementById('e-trade').value = ME.trade;
+  document.getElementById('e-loc').value = ME.location || '';
+  document.getElementById('e-years').value = ME.years || '';
+  document.getElementById('e-bio').value = ME.bio || '';
+  const prev = document.getElementById('edit-av-preview');
+  prev.innerHTML = ME.avatar ? `<img src="${ME.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : (TRADE_EMOJIS[ME.trade] || '⚒️');
+}
+function closeEdit() { document.getElementById('edit-profile').classList.remove('on'); }
+function previewAvatar(input) {
+  if (!input.files[0]) return;
+  const prev = document.getElementById('edit-av-preview');
+  const url = URL.createObjectURL(input.files[0]);
+  prev.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+}
+async function saveProfile() {
+  const data = {
+    name: document.getElementById('e-name').value.trim(),
+    trade: document.getElementById('e-trade').value,
+    location: document.getElementById('e-loc').value.trim(),
+    years: document.getElementById('e-years').value,
+    bio: document.getElementById('e-bio').value.trim()
+  };
+  if (!data.name) return toast('Name is required');
+  await api('/api/me', { method: 'PUT', body: data });
+  // Upload avatar if changed
+  const avatarFile = document.getElementById('edit-avatar').files[0];
+  if (avatarFile) {
+    const fd = new FormData();
+    fd.append('avatar', avatarFile);
+    await api('/api/me/avatar', { method: 'POST', body: fd });
+  }
+  ME = await api('/api/me');
+  closeEdit();
+  toast('✅ Card updated');
+  loadProfile();
+}
+
+// ═══════════════════════════════════════
+// COMMENTS (with replies)
+// ═══════════════════════════════════════
+let replyingTo = {}; // { postId: { commentId, userName } }
 async function toggleComments(postId) {
   const sec = document.getElementById('cmt-' + postId);
   const inp = document.getElementById('cmt-inp-' + postId);
@@ -660,16 +736,44 @@ async function loadComments(postId) {
     const emoji = TRADE_EMOJIS[c.user_trade] || '⚒️';
     const av = c.user_avatar ? `<img src="${c.user_avatar}">` : emoji;
     const ri = RANK_ICONS[c.user_rank] || '🟢';
-    const del = c.userId === ME.id ? `<span style="cursor:pointer;font-size:9px;color:var(--t3);margin-left:auto" onclick="deleteComment('${c.id}','${postId}')">🗑️</span>` : '';
+    const del = c.userId === ME.id ? `<span style="cursor:pointer;font-size:9px;color:var(--t3);margin-left:6px" onclick="deleteComment('${c.id}','${postId}')">🗑️</span>` : '';
+    const replyTag = c.replyToName ? `<span style="font-size:9px;color:var(--bl)">↩ ${c.replyToName}</span> ` : '';
+    const replyBtn = `<span style="cursor:pointer;font-size:9px;color:var(--t3);margin-left:8px" onclick="setReply('${postId}','${c.id}','${c.user_name}')">Reply</span>`;
     return `<div class="comment">
       <div class="comment-av" onclick="viewUser('${c.userId}')">${av}</div>
       <div class="comment-body">
-        <div class="comment-name" onclick="viewUser('${c.userId}')">${c.user_name} <span class="rank rank-${c.user_rank}" style="font-size:7px">${ri}</span> ${del}</div>
-        <div class="comment-text">${escHtml(c.content)}</div>
-        <div class="comment-time">${timeAgo(c.created_at)}</div>
+        <div class="comment-name" onclick="viewUser('${c.userId}')">${c.user_name} <span class="rank rank-${c.user_rank}" style="font-size:7px">${ri}</span>${del}</div>
+        <div class="comment-text">${replyTag}${escHtml(c.content)}</div>
+        <div class="comment-time">${timeAgo(c.created_at)} ${replyBtn}</div>
       </div>
     </div>`;
   }).join('');
+}
+
+function setReply(postId, commentId, userName) {
+  replyingTo[postId] = { commentId, userName };
+  const inp = document.getElementById('cmt-text-' + postId);
+  inp.placeholder = `Reply to ${userName}...`;
+  inp.focus();
+  // Show cancel reply
+  const inpWrap = document.getElementById('cmt-inp-' + postId);
+  const existing = inpWrap.querySelector('.reply-tag');
+  if (existing) existing.remove();
+  const tag = document.createElement('div');
+  tag.className = 'reply-tag';
+  tag.style.cssText = 'font-size:9px;color:var(--bl);padding:2px 8px;cursor:pointer;flex-shrink:0';
+  tag.textContent = '↩ ' + userName + ' ✕';
+  tag.onclick = () => { cancelReply(postId); };
+  inpWrap.insertBefore(tag, inp);
+}
+
+function cancelReply(postId) {
+  delete replyingTo[postId];
+  const inp = document.getElementById('cmt-text-' + postId);
+  inp.placeholder = 'Write a comment...';
+  const inpWrap = document.getElementById('cmt-inp-' + postId);
+  const existing = inpWrap.querySelector('.reply-tag');
+  if (existing) existing.remove();
 }
 
 async function postComment(postId) {
@@ -677,10 +781,14 @@ async function postComment(postId) {
   const txt = inp.value.trim();
   if (!txt) return;
   inp.value = '';
-  await api(`/api/posts/${postId}/comments`, { method: 'POST', body: { content: txt } });
+  const body = { content: txt };
+  if (replyingTo[postId]) {
+    body.replyTo = replyingTo[postId].commentId;
+    cancelReply(postId);
+  }
+  await api(`/api/posts/${postId}/comments`, { method: 'POST', body });
   toast('💬 Comment posted');
   loadComments(postId);
-  // Update comment count in the post actions
   const pa = document.querySelector(`#post-${postId} .post-acts .pa:nth-child(2) span:last-child`);
   if (pa) pa.textContent = parseInt(pa.textContent || 0) + 1;
 }
