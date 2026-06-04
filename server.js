@@ -15,7 +15,7 @@ const DB_FILE = path.join(__dirname, 'data.json');
 
 function loadDB() {
   try { return JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); }
-  catch(e) { return { users: {}, locals: {}, posts: {}, props: {}, messages: [], vouches: [], certs: {}, localMembers: {} }; }
+  catch(e) { return { users: {}, locals: {}, posts: {}, props: {}, messages: [], vouches: [], certs: {}, localMembers: {}, comments: [] }; }
 }
 function saveDB(db) { fs.writeFileSync(DB_FILE, JSON.stringify(db), 'utf8'); }
 
@@ -62,7 +62,7 @@ const storage = multer.diskStorage({
   destination: (r, f, cb) => cb(null, uploadsDir),
   filename: (r, f, cb) => cb(null, uuid() + path.extname(f.originalname))
 });
-const upload = multer({ storage, limits: { fileSize: 10*1024*1024 } });
+const upload = multer({ storage, limits: { fileSize: 50*1024*1024 } }); // 50MB for videos
 
 function auth(req, res, next) {
   const t = req.headers['x-token'];
@@ -199,7 +199,8 @@ app.get('/api/posts', auth, (req, res) => {
     const l = db.locals[p.localId]||{};
     const propsCount = Object.keys(db.props).filter(k => k.endsWith('|'+p.id)).length;
     const userPropped = !!db.props[req.userId+'|'+p.id];
-    return { ...p, user_name:u.name, user_trade:u.trade, user_avatar:u.avatar, user_rank:u.rank, local_name:l.name, local_emoji:l.emoji, props_count:propsCount, user_propped:userPropped };
+    const commentCount = (db.comments||[]).filter(c => c.postId === p.id).length;
+    return { ...p, user_name:u.name, user_trade:u.trade, user_avatar:u.avatar, user_rank:u.rank, local_name:l.name, local_emoji:l.emoji, props_count:propsCount, user_propped:userPropped, comment_count:commentCount };
   });
   res.json(posts);
 });
@@ -209,7 +210,14 @@ app.post('/api/posts', auth, upload.single('image'), (req, res) => {
   if (!content) return res.status(400).json({ error:'Content required' });
   const db = loadDB();
   const id = uuid();
-  db.posts[id] = { userId:req.userId, localId:local_id||null, content, image:req.file?'/uploads/'+req.file.filename:'', created_at:new Date().toISOString() };
+  let media = '';
+  let mediaType = '';
+  if (req.file) {
+    media = '/uploads/' + req.file.filename;
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    mediaType = ['.mp4','.mov','.webm','.avi','.mkv'].includes(ext) ? 'video' : 'image';
+  }
+  db.posts[id] = { userId:req.userId, localId:local_id||null, content, image:media, mediaType, created_at:new Date().toISOString() };
   saveDB(db);
   res.json({ id });
 });
@@ -225,6 +233,40 @@ app.delete('/api/posts/:id', auth, (req, res) => {
   const db = loadDB();
   if (db.posts[req.params.id]?.userId === req.userId) delete db.posts[req.params.id];
   Object.keys(db.props).filter(k => k.endsWith('|'+req.params.id)).forEach(k => delete db.props[k]);
+  saveDB(db);
+  res.json({ ok:true });
+});
+
+// ═══════════════════════════════════════
+// COMMENTS
+// ═══════════════════════════════════════
+app.get('/api/posts/:id/comments', auth, (req, res) => {
+  const db = loadDB();
+  if (!db.comments) db.comments = [];
+  const comments = db.comments.filter(c => c.postId === req.params.id).map(c => {
+    const u = db.users[c.userId] || {};
+    return { ...c, user_name:u.name, user_trade:u.trade, user_avatar:u.avatar||'', user_rank:u.rank };
+  });
+  comments.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+  res.json(comments);
+});
+
+app.post('/api/posts/:id/comments', auth, (req, res) => {
+  const { content } = req.body;
+  if (!content) return res.status(400).json({ error:'Comment required' });
+  const db = loadDB();
+  if (!db.comments) db.comments = [];
+  const id = uuid();
+  db.comments.push({ id, postId:req.params.id, userId:req.userId, content, created_at:new Date().toISOString() });
+  saveDB(db);
+  const u = db.users[req.userId] || {};
+  res.json({ id, postId:req.params.id, userId:req.userId, content, created_at:new Date().toISOString(), user_name:u.name, user_trade:u.trade, user_avatar:u.avatar||'', user_rank:u.rank });
+});
+
+app.delete('/api/comments/:id', auth, (req, res) => {
+  const db = loadDB();
+  if (!db.comments) db.comments = [];
+  db.comments = db.comments.filter(c => !(c.id === req.params.id && c.userId === req.userId));
   saveDB(db);
   res.json({ ok:true });
 });
