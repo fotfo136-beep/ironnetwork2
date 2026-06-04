@@ -245,22 +245,27 @@ app.get('/api/posts/:id/comments', auth, (req, res) => {
   if (!db.comments) db.comments = [];
   const comments = db.comments.filter(c => c.postId === req.params.id).map(c => {
     const u = db.users[c.userId] || {};
-    return { ...c, user_name:u.name, user_trade:u.trade, user_avatar:u.avatar||'', user_rank:u.rank };
+    let replyToName = null;
+    if (c.replyTo) {
+      const rc = db.comments.find(x => x.id === c.replyTo);
+      if (rc) { const ru = db.users[rc.userId]; if (ru) replyToName = ru.name; }
+    }
+    return { ...c, user_name:u.name, user_trade:u.trade, user_avatar:u.avatar||'', user_rank:u.rank, replyToName };
   });
   comments.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
   res.json(comments);
 });
 
 app.post('/api/posts/:id/comments', auth, (req, res) => {
-  const { content } = req.body;
+  const { content, replyTo } = req.body;
   if (!content) return res.status(400).json({ error:'Comment required' });
   const db = loadDB();
   if (!db.comments) db.comments = [];
   const id = uuid();
-  db.comments.push({ id, postId:req.params.id, userId:req.userId, content, created_at:new Date().toISOString() });
+  db.comments.push({ id, postId:req.params.id, userId:req.userId, content, replyTo:replyTo||null, created_at:new Date().toISOString() });
   saveDB(db);
   const u = db.users[req.userId] || {};
-  res.json({ id, postId:req.params.id, userId:req.userId, content, created_at:new Date().toISOString(), user_name:u.name, user_trade:u.trade, user_avatar:u.avatar||'', user_rank:u.rank });
+  res.json({ id, postId:req.params.id, userId:req.userId, content, replyTo:replyTo||null, created_at:new Date().toISOString(), user_name:u.name, user_trade:u.trade, user_avatar:u.avatar||'', user_rank:u.rank });
 });
 
 app.delete('/api/comments/:id', auth, (req, res) => {
