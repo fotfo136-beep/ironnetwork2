@@ -150,6 +150,23 @@ textarea.inp{resize:none;min-height:80px;line-height:1.5}
 
 /* Loading */
 .loading{text-align:center;padding:30px;color:var(--t3);font-size:12px}
+
+/* Video in posts */
+.post-vid{width:100%;max-height:300px;background:#000;border-radius:0}
+
+/* Comments section */
+.comments-sec{padding:0 12px 10px}
+.comment{display:flex;gap:6px;padding:6px 0;border-bottom:1px solid var(--b)}
+.comment:last-child{border:none}
+.comment-av{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;background:var(--c2);flex-shrink:0;overflow:hidden}
+.comment-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.comment-body{flex:1}
+.comment-name{font-size:10px;font-weight:800;display:flex;align-items:center;gap:3px}
+.comment-text{font-size:11px;color:var(--t2);line-height:1.4;margin-top:1px}
+.comment-time{font-size:8px;color:var(--t3);margin-top:2px}
+.comment-input{display:flex;gap:6px;padding:4px 12px 8px;align-items:center}
+.comment-input .inp{flex:1;padding:8px 10px;font-size:11px;border-radius:8px}
+.comment-input button{width:32px;height:32px;border-radius:8px;background:var(--or);border:none;color:#000;font-size:12px;font-weight:900;cursor:pointer;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -297,8 +314,8 @@ textarea.inp{resize:none;min-height:80px;line-height:1.5}
       </div>
       <textarea class="inp" id="c-text" placeholder="What's happening on site? Drop your work, ask a question..."></textarea>
       <div style="margin-top:10px">
-        <label class="lbl">📸 Photo (optional)</label>
-        <input type="file" id="c-img" accept="image/*" style="font-size:12px;color:var(--t2)">
+        <label class="lbl">📸 Photo or 🎥 Video</label>
+        <input type="file" id="c-img" accept="image/*,video/*" style="font-size:12px;color:var(--t2)">
       </div>
     </div>
   </div>
@@ -389,27 +406,42 @@ function renderPost(p) {
   const ri = RANK_ICONS[p.user_rank] || '🟢';
   const rn = RANK_NAMES[p.user_rank] || 'Apprentice';
   const av = p.user_avatar ? `<img src="${p.user_avatar}">` : emoji;
-  const img = p.image ? `<img class="post-img" src="${p.image}" onerror="this.style.display='none'">` : '';
+  let media = '';
+  if (p.image) {
+    if (p.mediaType === 'video') {
+      media = `<video class="post-vid" src="${p.image}" controls playsinline preload="metadata"></video>`;
+    } else {
+      media = `<img class="post-img" src="${p.image}" onerror="this.style.display='none'">`;
+    }
+  }
   const localTag = p.local_name ? `<span class="ltag">${p.local_emoji||'⚒️'} ${p.local_name}</span>` : '';
   const ago = timeAgo(p.created_at);
   const propped = p.user_propped ? 'on' : '';
-  return `<div class="post card">
+  const cmtCount = p.comment_count || 0;
+  return `<div class="post card" id="post-${p.id}">
     <div class="post-hdr">
-      <div class="post-av" onclick="viewUser('${p.user_id}')">${av}</div>
+      <div class="post-av" onclick="viewUser('${p.userId||p.user_id}')">${av}</div>
       <div class="post-u">
-        <div class="post-n" onclick="viewUser('${p.user_id}')">${p.user_name} <span class="rank rank-${p.user_rank}">${ri} ${rn}</span></div>
+        <div class="post-n" onclick="viewUser('${p.userId||p.user_id}')">${p.user_name} <span class="rank rank-${p.user_rank}">${ri} ${rn}</span></div>
         <div class="post-m"><span class="ptag">${emoji} ${p.user_trade}</span> ${localTag} <span>· ${ago}</span></div>
       </div>
     </div>
-    ${img}
-    <div class="post-body">${p.content}</div>
+    ${media}
+    <div class="post-body">${escHtml(p.content)}</div>
     <div class="post-acts">
       <div class="pa ${propped}" onclick="toggleProps('${p.id}',this)"><span>${p.user_propped?'🔥':'🤍'}</span> <span>${p.props_count} props</span></div>
-      <div class="pa"><span>💬</span></div>
-      ${p.user_id===ME.id?`<div class="pa" onclick="deletePost('${p.id}')" style="margin-left:auto;font-size:10px;color:var(--t3)">🗑️</div>`:''}
+      <div class="pa" onclick="toggleComments('${p.id}')"><span>💬</span> <span>${cmtCount}</span></div>
+      ${(p.userId||p.user_id)===ME.id?`<div class="pa" onclick="deletePost('${p.id}')" style="margin-left:auto;font-size:10px;color:var(--t3)">🗑️</div>`:''}
+    </div>
+    <div class="comments-sec" id="cmt-${p.id}" style="display:none"></div>
+    <div class="comment-input" id="cmt-inp-${p.id}" style="display:none">
+      <input class="inp" id="cmt-text-${p.id}" placeholder="Write a comment..." onkeydown="if(event.key==='Enter')postComment('${p.id}')">
+      <button onclick="postComment('${p.id}')">→</button>
     </div>
   </div>`;
 }
+
+function escHtml(s) { return s.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 async function toggleProps(postId, el) {
   const r = await api(`/api/posts/${postId}/props`, { method: 'POST' });
@@ -629,6 +661,64 @@ async function vouch(userId, category, el) {
 }
 
 // ═══════════════════════════════════════
+// COMMENTS
+// ═══════════════════════════════════════
+async function toggleComments(postId) {
+  const sec = document.getElementById('cmt-' + postId);
+  const inp = document.getElementById('cmt-inp-' + postId);
+  if (sec.style.display === 'none') {
+    sec.style.display = 'block';
+    inp.style.display = 'flex';
+    loadComments(postId);
+  } else {
+    sec.style.display = 'none';
+    inp.style.display = 'none';
+  }
+}
+
+async function loadComments(postId) {
+  const comments = await api(`/api/posts/${postId}/comments`);
+  const sec = document.getElementById('cmt-' + postId);
+  if (!comments.length) {
+    sec.innerHTML = '<div style="padding:6px 0;font-size:10px;color:var(--t3)">No comments yet. Be the first.</div>';
+    return;
+  }
+  sec.innerHTML = comments.map(c => {
+    const emoji = TRADE_EMOJIS[c.user_trade] || '⚒️';
+    const av = c.user_avatar ? `<img src="${c.user_avatar}">` : emoji;
+    const ri = RANK_ICONS[c.user_rank] || '🟢';
+    const del = c.userId === ME.id ? `<span style="cursor:pointer;font-size:9px;color:var(--t3);margin-left:auto" onclick="deleteComment('${c.id}','${postId}')">🗑️</span>` : '';
+    return `<div class="comment">
+      <div class="comment-av" onclick="viewUser('${c.userId}')">${av}</div>
+      <div class="comment-body">
+        <div class="comment-name" onclick="viewUser('${c.userId}')">${c.user_name} <span class="rank rank-${c.user_rank}" style="font-size:7px">${ri}</span> ${del}</div>
+        <div class="comment-text">${escHtml(c.content)}</div>
+        <div class="comment-time">${timeAgo(c.created_at)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function postComment(postId) {
+  const inp = document.getElementById('cmt-text-' + postId);
+  const txt = inp.value.trim();
+  if (!txt) return;
+  inp.value = '';
+  await api(`/api/posts/${postId}/comments`, { method: 'POST', body: { content: txt } });
+  toast('💬 Comment posted');
+  loadComments(postId);
+  // Update comment count in the post actions
+  const pa = document.querySelector(`#post-${postId} .post-acts .pa:nth-child(2) span:last-child`);
+  if (pa) pa.textContent = parseInt(pa.textContent || 0) + 1;
+}
+
+async function deleteComment(commentId, postId) {
+  await api(`/api/comments/${commentId}`, { method: 'DELETE' });
+  toast('🗑️ Comment deleted');
+  loadComments(postId);
+}
+
+// ═══════════════════════════════════════
 // COMPOSE
 // ═══════════════════════════════════════
 async function openCompose() {
@@ -688,5 +778,5 @@ async function initApp() {
 
 initApp();
 </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a062d6ed9968ee0a',t:'MTc4MDUzMzEzNw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
